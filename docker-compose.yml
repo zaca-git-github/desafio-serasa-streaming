@@ -1,0 +1,19 @@
+version: '3.8'
+services:
+  # Serviço que envia os dados (Producer)
+  producer:
+    build: .
+    command: python producer.py
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+
+  # Serviço que salva em Parquet (Consumer)
+  consumer:
+    build: .
+    command: python consumer.py
+    depends_on:
+      - producer
+    volumes:
+      - ./data:/app/data

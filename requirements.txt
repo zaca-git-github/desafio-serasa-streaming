@@ -1,0 +1,6 @@
+flask
+pandas
+requests
+pyarrow
+fastparquet
+duckdb
