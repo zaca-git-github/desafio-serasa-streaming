@@ -1,42 +1,62 @@
-import requests
+import sseclient
 import json
 import duckdb
+import os
 import pandas as pd
-import time # Adicione isso
+import requests
+import time
 
-url = "http://producer:5000/start"
+# Pasta onde os dados serao salvos
+DATA_LAKE_PATH = 'data/analytics'
+os.makedirs(DATA_LAKE_PATH, exist_ok=True)
 
-def consume_with_duckdb():
-    # ESPERA O PRODUCER SUBIR
-    print("Aguardando o Producer iniciar (5s)...")
-    time.sleep(5)
-    
-    data_list = []
-    print("Iniciando consumo com DuckDB e FILTROS...")
-    
+con = duckdb.connect()
+
+def process_and_save(event_data):
     try:
-        response = requests.get(url, stream=True)
-        for line in response.iter_lines():
-            if line:
-                decoded_line = line.decode('utf-8').replace('data: ', '')
-                data = json.loads(decoded_line)
-                data_list.append(data)
-                print(f"Coletado: {data['key']}")
+        dados_json = json.loads(event_data)
+        df = pd.DataFrame([dados_json])
+        df['pickup_datetime'] = pd.to_datetime(df['pickup_datetime'])
+        
+        con.register('staging_table', df)
 
-                if len(data_list) >= 4:
-                    df = pd.DataFrame(data_list)
-                    con = duckdb.connect()
-                    
-                    # FILTRO: Apenas corridas com passageiros (conforme o edital pediu)
-                    query = "SELECT * FROM df WHERE passenger_count > 0"
-                    
-                    con.execute(f"CREATE TABLE taxi_filtrado AS {query}")
-                    con.execute("COPY taxi_filtrado TO 'data/resultado_final.parquet' (FORMAT PARQUET)")
-                    
-                    print("\n--- SUCESSO: DADOS FILTRADOS E SALVOS EM PARQUET! ---")
-                    break
+        # Particionamento por Ano, Mes e Dia (Requisito Serasa)
+        query_filtrada = """
+            SELECT *, 
+                   year(pickup_datetime) as ano, 
+                   month(pickup_datetime) as mes, 
+                   day(pickup_datetime) as dia
+            FROM staging_table
+            WHERE passenger_count > 0 
+        """
+
+        con.execute(f"""
+            COPY ({query_filtrada}) 
+            TO '{DATA_LAKE_PATH}' 
+            (FORMAT PARQUET, PARTITION_BY (ano, mes, dia), OVERWRITE_OR_IGNORE 1);
+        """)
+        
+        print(f"✅ Sucesso! Gravado no Data Lake: {df['pickup_datetime'].iloc[0]}")
     except Exception as e:
-        print(f"Erro: {e}")
+        print(f"❌ Erro no processamento: {e}")
+
+def start_consumer():
+    url = 'http://producer:5000/stream'
+    print(f"🚀 Iniciando Consumidor... Conectando em: {url}")
+    
+    while True:
+        try:
+            response = requests.get(url, stream=True, timeout=5)
+            if response.status_code == 200:
+                client = sseclient.SSEClient(response)
+                for msg in client.events():
+                    if msg.data:
+                        process_and_save(msg.data)
+            else:
+                print(f"⏳ Aguardando rota /stream (Status {response.status_code})...")
+        except Exception:
+            print("⚠️ Sem sinal do Producer. Tentando novamente em 5s...")
+        time.sleep(5)
 
 if __name__ == "__main__":
-    consume_with_duckdb()
+    start_consumer()

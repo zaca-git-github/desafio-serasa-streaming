@@ -1,33 +1,33 @@
+from flask import Flask, Response
 import time
 import pandas as pd
 import json
-from flask import Flask, Response
+import os
 
 app = Flask(__name__)
 
-# Esta função vai ler o seu arquivo e enviar os dados um por um
-@app.route('/start')
-def start_streaming():
-    def generate():
-        try:
-            # ATENÇÃO: O arquivo train_sample.csv deve estar dentro da pasta 'data'
-            df = pd.read_csv('data/train_sample.csv')
-            print("Sucesso! Começando a enviar os dados para o navegador...")
-            
-            for index, row in df.iterrows():
-                # Transforma a linha da tabela em texto (JSON)
-                data = row.to_json()
-                # Formato que o streaming exige
-                yield f"data: {data}\n\n"
-                # Espera meio segundo antes de enviar a próxima linha
-                time.sleep(0.5) 
-        except Exception as e:
-            print(f"Erro: {e}")
-            yield f"data: Erro ao ler arquivo: {str(e)}\n\n"
+@app.route('/stream')
+def stream():
+    def event_stream():
+        # Caminho corrigido para a pasta correta
+        csv_path = 'data/train_sample.csv' 
+        
+        if not os.path.exists(csv_path):
+            print(f"❌ Erro: Arquivo nao encontrado em {csv_path}")
+            yield f"data: {json.dumps({'error': 'file_not_found'})}\n\n"
+            return
 
-    return Response(generate(), mimetype='text/event-stream')
+        df = pd.read_csv(csv_path)
+        for index, row in df.iterrows():
+            json_data = row.to_json()
+            yield f"data: {json_data}\n\n"
+            time.sleep(0.5)
+            
+    return Response(event_stream(), mimetype="text/event-stream")
+
+@app.route('/start')
+def start():
+    return "🚀 Servidor de Streaming ativo! O consumidor ja pode ler de /stream."
 
 if __name__ == "__main__":
-    print("Servidor Iniciado!")
-    print("Acesse no Chrome: http://localhost:5000/start")
     app.run(host='0.0.0.0', port=5000)

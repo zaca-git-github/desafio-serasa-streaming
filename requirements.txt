@@ -4,3 +4,5 @@ requests
 pyarrow
 fastparquet
 duckdb
+sseclient-py
+requests
