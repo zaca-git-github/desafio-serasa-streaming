@@ -1,19 +1,22 @@
 version: '3.8'
+
 services:
-  # Serviço que envia os dados (Producer)
+  # Serviço que envia os dados
   producer:
     build: .
-    command: python producer.py
+    container_name: producer
     ports:
-      - "5000:5000"
+      - "5000:5000" # Mapeia a porta para você acessar no navegador
     volumes:
-      - ./data:/app/data
+      - .:/app # Sincroniza seus arquivos locais com o container
+    command: python producer.py
 
-  # Serviço que salva em Parquet (Consumer)
+  # Serviço que processa e salva os dados no Data Lake
   consumer:
     build: .
-    command: python consumer.py
+    container_name: consumer
     depends_on:
-      - producer
+      - producer # Garante que o producer suba primeiro
     volumes:
-      - ./data:/app/data
+      - .:/app # Permite que o consumer salve os arquivos .parquet na sua pasta local
+    command: python consumer.py
