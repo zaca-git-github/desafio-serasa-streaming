@@ -6,7 +6,7 @@ services:
     build: .
     container_name: producer
     ports:
-      - "5000:5000" # Mapeia a porta para você acessar no navegador
+      - "5050:5000" # Mapeia a porta para você acessar no navegador
     volumes:
       - .:/app # Sincroniza seus arquivos locais com o container
     command: python producer.py
