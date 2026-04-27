@@ -1,4 +1,4 @@
-# Desafio Serasa - Pipeline de Streaming Analítico
+# Projeto_1 - Pipeline de Streaming Analítico
 
 Este projeto implementa uma solução completa de engenharia de dados para processamento de eventos em tempo real, utilizando tecnologias modernas de alta performance.
 
